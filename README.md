@@ -28,7 +28,29 @@ docker exec -it postgres psql -U postgres -d efvsdapper_db -c "\dt"
 ```
 (Container name is `postgres` because it is set that way in compose.)
 
-## 3. Run the API (on the host)
+## 3. Apply migrations (?????????? ????? ??)
+The app automatically runs `Database.Migrate()` on startup and seeds data if the DB is empty. If you prefer to apply migrations manually (or after changing the model):
+
+Install EF tooling if needed:
+```bash
+dotnet tool install --global dotnet-ef
+```
+Add a new migration after model changes (example):
+```bash
+dotnet ef migrations add AddSomething --project API --startup-project API
+```
+Apply migrations to the database:
+```bash
+dotnet ef database update --project API --startup-project API
+```
+List migrations:
+```bash
+dotnet ef migrations list --project API --startup-project API
+```
+
+(Existing initial migration: `InitialCreate`.)
+
+## 4. Run the API (on the host)
 ```bash
 dotnet restore
 dotnet build
@@ -36,9 +58,7 @@ dotnet run --project API
 ```
 Swagger: https://localhost:****/swagger
 
-On first start `EnsureCreated()` runs and seeds sample data.
-
-## 4. (Optional) Run BOTH API and DB in Docker
+## 5. (Optional) Run BOTH API and DB in Docker
 If you later want to containerize the API as well, extend `docker-compose.yml`:
 ```yaml
 services:
@@ -69,12 +89,12 @@ volumes:
 ```
 Then the connection string must use `Host=postgres` (service name inside compose network).
 
-## 5. Clean up
+## 6. Clean up
 ```bash
 docker compose down -v
 ```
 
-## 6. Useful commands
+## 7. Useful commands
 - Logs: `docker logs -f postgres`
 - Recreate a clean DB: `docker compose down -v && docker compose up -d`
 - Check port usage: `netstat -ano | find "5432"` (Windows) / `lsof -i :5432` (Linux/macOS)

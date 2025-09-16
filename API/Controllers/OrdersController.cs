@@ -1,9 +1,9 @@
-using System.Data;
 using API.Data;
 using API.DTOs;
+using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Dapper;
+using System.Data;
 
 namespace API.Controllers;
 
@@ -26,30 +26,24 @@ public class OrdersController : ControllerBase
 
         if (mode.Equals("dapper", StringComparison.OrdinalIgnoreCase))
         {
-            var sql = @"SELECT o.id as OrderId, o.createdat, o.userid, u.name as username,
-                                oi.id as OrderItemId, oi.productid, p.name as productname, oi.quantity, oi.unitprice
-                         FROM orders o
-                         JOIN users u ON u.id = o.userid
-                         JOIN orderitems oi ON oi.orderid = o.id
-                         JOIN products p ON p.id = oi.productid
-                         ORDER BY o.createdat DESC
-                         LIMIT 10";
+            var sql = @" SELECT o.""Id""          AS ""OrderId"", o.""CreatedAt""   AS ""CreatedAt"", o.""UserId""      AS ""UserId"", u.""Name""        AS ""UserName"", oi.""Id""         AS ""OrderItemId"", oi.""ProductId""  AS ""ProductId"", p.""Name""        AS ""ProductName"", oi.""Quantity""   AS ""Quantity"", oi.""UnitPrice""  AS ""UnitPrice"" FROM ""Orders"" o JOIN ""Users"" u       ON u.""Id"" = o.""UserId"" JOIN ""OrderItems"" oi ON oi.""OrderId"" = o.""Id"" JOIN ""Products"" p    ON p.""Id"" = oi.""ProductId"" ORDER BY o.""CreatedAt"" DESC LIMIT 10";
 
             var lookup = new Dictionary<int, OrderDto>();
 
             var rows = await _conn.QueryAsync(sql);
             foreach (var r in rows)
             {
-                int orderId = r.orderid;
+                // Fix property name casing to match SQL aliases
+                var orderId = (int)r.OrderId;
                 if (!lookup.TryGetValue(orderId, out var dto))
                 {
-                    dto = new OrderDto(orderId, (DateTime)r.createdat, (int)r.userid, (string)r.username, 0m, new List<OrderItemDto>());
+                    dto = new OrderDto(orderId, (DateTime)r.CreatedAt, (int)r.UserId, (string)r.UserName, 0m, new List<OrderItemDto>());
                     lookup[orderId] = dto;
                 }
-                var item = new OrderItemDto((int)r.orderitemid, (int)r.productid, (string)r.productname, (int)r.quantity, (decimal)r.unitprice);
+                var item = new OrderItemDto((int)r.OrderItemId, (int)r.ProductId, (string)r.ProductName, (int)r.Quantity, (decimal)r.UnitPrice);
                 dto.Items.Add(item);
             }
-            foreach (var dto in lookup.Values)
+            foreach (var dto in lookup.Values.ToList())
             {
                 dto.Items.TrimExcess();
                 var total = dto.Items.Sum(i => i.Quantity * i.UnitPrice);

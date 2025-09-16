@@ -28,12 +28,11 @@ namespace API
 
             var app = builder.Build();
 
-            // Apply migrations / create & seed
+            // Apply migrations and seed
             using (var scope = app.Services.CreateScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                // For demo we ensure created (could use migrations if added later)
-                await db.Database.EnsureCreatedAsync();
+                await db.Database.MigrateAsync();
                 await Data.SeedData.SeedAsync(db);
             }
 
