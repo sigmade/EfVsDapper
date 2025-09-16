@@ -18,7 +18,10 @@ namespace API
             builder.Services.AddSwaggerGen();
 
             // Db + EF + Dapper
-            var connString = configuration.GetConnectionString("DefaultConnection") ?? "Host=localhost;Port=5432;Database=efvsdapper_db;Username=postgres;Password=postgres";
+            // Force localhost host when running API outside Docker, ignoring any mistaken override to 'postgres'
+            var configured = configuration.GetConnectionString("DefaultConnection");
+            var connString = FixHost(configured ?? "Host=localhost;Port=5432;Database=efvsdapper_db;Username=postgres;Password=postgres");
+            Console.WriteLine($"Using connection string: {connString}");
             builder.Services.AddDbContext<AppDbContext>(options =>
                 options.UseNpgsql(connString));
             builder.Services.AddScoped<IDbConnection>(_ => new Npgsql.NpgsqlConnection(connString));
@@ -44,6 +47,16 @@ namespace API
             app.UseAuthorization();
             app.MapControllers();
             await app.RunAsync();
+        }
+
+        private static string FixHost(string cs)
+        {
+            // If user accidentally set Host=postgres but API runs on host machine, replace with localhost.
+            if (cs.Contains("Host=postgres" , StringComparison.OrdinalIgnoreCase))
+            {
+                return cs.Replace("Host=postgres", "Host=localhost", StringComparison.OrdinalIgnoreCase);
+            }
+            return cs;
         }
     }
 }
