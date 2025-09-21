@@ -11,6 +11,7 @@ namespace API
             var builder = WebApplication.CreateBuilder(args);
 
             var configuration = builder.Configuration;
+            Console.WriteLine($"Environment: {builder.Environment.EnvironmentName}");
 
             // Add services to the container.
             builder.Services.AddControllers();
@@ -18,22 +19,44 @@ namespace API
             builder.Services.AddSwaggerGen();
 
             // Db + EF + Dapper
-            // Force localhost host when running API outside Docker, ignoring any mistaken override to 'postgres'
             var configured = configuration.GetConnectionString("DefaultConnection");
-            var connString = FixHost(configured ?? "Host=localhost;Port=5432;Database=efvsdapper_db;Username=postgres;Password=postgres");
-            Console.WriteLine($"Using connection string: {connString}");
+            Console.WriteLine($"Configured connection string from config: {configured}");
+            
+            var connString = configured;
+            
+            // Only apply FixHost when not in testing environment
+            if (builder.Environment.EnvironmentName != "Testing")
+            {
+                // Force localhost host when running API outside Docker, ignoring any mistaken override to 'postgres'
+                connString = FixHost(configured ?? "Host=localhost;Port=5432;Database=efvsdapper_db;Username=postgres;Password=postgres");
+            }
+            else if (string.IsNullOrEmpty(connString))
+            {
+                connString = "Host=localhost;Port=5432;Database=efvsdapper_db;Username=postgres;Password=postgres";
+            }
+            
+            Console.WriteLine($"Final connection string: {connString}");
             builder.Services.AddDbContext<AppDbContext>(options =>
                 options.UseNpgsql(connString));
             builder.Services.AddScoped<IDbConnection>(_ => new Npgsql.NpgsqlConnection(connString));
 
             var app = builder.Build();
 
-            // Apply migrations and seed
-            using (var scope = app.Services.CreateScope())
+            // Apply migrations and seed only if not in testing environment
+            if (!app.Environment.IsEnvironment("Testing"))
             {
-                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                await db.Database.MigrateAsync();
-                await Data.SeedData.SeedAsync(db);
+                Console.WriteLine("Applying migrations and seeding data...");
+                // Apply migrations and seed
+                using (var scope = app.Services.CreateScope())
+                {
+                    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                    await db.Database.MigrateAsync();
+                    await Data.SeedData.SeedAsync(db);
+                }
+            }
+            else
+            {
+                Console.WriteLine("Skipping migrations and seeding for Testing environment");
             }
 
             if (app.Environment.IsDevelopment())
